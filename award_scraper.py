@@ -10,9 +10,9 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # ── PostgreSQL connection ─────────────────────────────────────────
-PG_DSN = os.getenv(
-    "AWARD_PG_DSN",
-    "postgresql://postgres:@postgres_postgres:5432/buscador_passagens"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://auth_api:auth_api_2026_seguro@postgres:5432/buscador_passagens"
 )
 
 # Path to JSON fallback (generated from CSVs)
@@ -82,7 +82,7 @@ async def _get_pool():
     if _pg_pool is None:
         try:
             import asyncpg
-            _pg_pool = await asyncpg.create_pool(PG_DSN, min_size=1, max_size=3, timeout=5)
+            _pg_pool = await asyncpg.create_pool(DATABASE_URL.replace("+pg8000", ""), min_size=1, max_size=3, timeout=5)
         except Exception as e:
             logger.warning(f"PG pool failed: {e}")
             _pg_pool = None

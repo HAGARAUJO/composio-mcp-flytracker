@@ -12,10 +12,11 @@ import redis.asyncio as aioredis
 
 # ── Config ────────────────
 PORT = int(os.getenv("PORT", "8000"))
-PG_DSN = os.getenv("PG_DSN", "postgresql+pg8000://auth_api:auth_api_2026_seguro@postgres_postgres:5432/buscador_passagens")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+pg8000://auth_api:auth_api_2026_seguro@postgres:5432/buscador_passagens")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:***@postgres_postgres:5432/buscador_passagens")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/12")
 
-engine = create_engine(PG_DSN, pool_size=2, max_overflow=2)
+engine = create_engine(DATABASE_URL, pool_size=2, max_overflow=2)
 redis_client = None
 
 # ── Password hashing ──────

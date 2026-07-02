@@ -1,15 +1,14 @@
 version: "3.7"
 
 services:
-  api:
+  buscador:
     image: flytracker-api:latest
     hostname: "{{.Service.Name}}.{{.Task.Slot}}"
     networks:
       - network_swarm_public
     environment:
       - PORT=8000
-      - PG_DSN=postgresql+pg8000://auth_api:auth_api_2026_seguro@postgres_postgres:5432/buscador_passagens
-      - AWARD_PG_DSN=postgresql://auth_api:auth_api_2026_seguro@postgres_postgres:5432/buscador_passagens
+      - DATABASE_URL=postgresql+pg8000://auth_api:auth_api_2026_seguro@postgres:5432/buscador_passagens
       - REDIS_URL=redis://redis:6379/12
     deploy:
       mode: replicated
@@ -23,12 +22,12 @@ services:
           memory: 256M
       labels:
         - traefik.enable=true
-        - traefik.http.routers.buscador-api.rule=Host(`buscador.pelagus.com.br`)
-        - traefik.http.routers.buscador-api.entrypoints=websecure
-        - traefik.http.routers.buscador-api.tls.certresolver=letsencryptresolver
-        - traefik.http.routers.buscador-api.service=buscador-api
-        - traefik.http.services.buscador-api.loadbalancer.server.port=8000
-        - traefik.http.services.buscador-api.loadbalancer.passHostHeader=true
+        - traefik.http.routers.buscador.rule=Host(`buscador.pelagus.com.br`)
+        - traefik.http.routers.buscador.entrypoints=websecure
+        - traefik.http.routers.buscador.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.buscador.service=buscador
+        - traefik.http.services.buscador.loadbalancer.server.port=8000
+        - traefik.http.services.buscador.loadbalancer.passHostHeader=true
 
 networks:
   network_swarm_public:
