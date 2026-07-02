@@ -8,7 +8,7 @@ services:
       - network_swarm_public
     environment:
       - PORT=8000
-      - DATABASE_URL=postgresql+pg8000://auth_api:auth_api_2026_seguro@postgres:5432/buscador_passagens
+      - DATABASE_URL=postgresql://auth_api:***@postgres:5432/buscador_passagens
       - REDIS_URL=redis://redis:6379/12
     deploy:
       mode: replicated

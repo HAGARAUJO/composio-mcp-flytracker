@@ -82,7 +82,7 @@ async def _get_pool():
     if _pg_pool is None:
         try:
             import asyncpg
-            _pg_pool = await asyncpg.create_pool(DATABASE_URL.replace("+pg8000", ""), min_size=1, max_size=3, timeout=5)
+            _pg_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=3, timeout=5)
         except Exception as e:
             logger.warning(f"PG pool failed: {e}")
             _pg_pool = None
