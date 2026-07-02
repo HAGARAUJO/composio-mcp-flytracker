@@ -4,7 +4,7 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     curl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY auth_server_fastapi.py award_scraper.py award_data.json ./
+COPY *.py *.json ./
 COPY frontend/ ./frontend/
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD curl -sf http://localhost:8000/health || exit 1
