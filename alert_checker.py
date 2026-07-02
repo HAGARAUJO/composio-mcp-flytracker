@@ -4,14 +4,13 @@ import os
 import re
 from datetime import datetime
 
-GMAIL_ENTITY = os.getenv("GMAIL_ENTITY", "pg-test-0b63b0ba-9503-4607-8921-3f03394aa1ed")
-COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY", "")
+USER_ID = os.getenv("GMAIL_ENTITY", "pg-test-0b63b0ba-9503-4607-8921-3f03394aa1ed")
 ALERTA_INTERVAL = int(os.getenv("ALERTA_INTERVAL_HORAS", "2"))
 
 HAS_COMPOSIO = False
 try:
     from composio import Composio
-    HAS_COMPOSIO = bool(COMPOSIO_API_KEY)
+    HAS_COMPOSIO = bool(os.getenv("COMPOSIO_API_KEY", ""))
 except ImportError:
     print("⚠️ composio not installed")
 
@@ -48,7 +47,7 @@ def parse_alert_email(subject: str, body: str) -> list[dict]:
     alerts = []
     text = f"{subject} {body}"
     route_match = re.search(
-        r'(?P<orig>[A-Z]{3})\s*[→➡>-]\s*(?P<dest>[A-Z]{3})', text
+        r'(?:(?:from\s+)?(?P<orig>[A-Z]{3})\s*(?:[→➡>\-]|\s+to\s+)\s*(?P<dest>[A-Z]{3}))', text, re.I
     )
     if not route_match:
         return alerts
@@ -90,22 +89,22 @@ def parse_alert_email(subject: str, body: str) -> list[dict]:
 
 async def check_alerts(redis_client, engine):
     """Fetch unread Gmail emails, parse, store."""
-    if not HAS_COMPOSIO or not COMPOSIO_API_KEY:
+    if not HAS_COMPOSIO:
         print("ℹ️ Composio not configured — skipping alert check")
         return
 
     try:
-        composio_client = Composio(api_key=COMPOSIO_API_KEY)
+        composio = Composio()
         print("📧 Checking Gmail for alert emails...")
 
-        result = composio_client.tools.execute(
+        # Busca emails não lidos — execute direto, sem create()
+        result = composio.tools.execute(
             slug="GMAIL_FETCH_EMAILS",
             arguments={"user_id": "me", "max_results": 10},
-            user_id=GMAIL_ENTITY,
+            user_id=USER_ID,
             dangerously_skip_version_check=True,
         )
 
-        # Response is a dict directly
         if isinstance(result, dict):
             messages = result.get("data", {}).get("messages", [])
         else:
@@ -131,6 +130,7 @@ async def check_alerts(redis_client, engine):
                 print("     ⏭️  No alert data found")
                 continue
 
+            # Check if already processed (last 24h)
             with engine.connect() as conn:
                 existing = conn.execute(
                     text("SELECT id FROM alertas WHERE email_origem = :e AND criado_em > NOW() - INTERVAL '24 hours' LIMIT 1"),
@@ -154,11 +154,12 @@ async def check_alerts(redis_client, engine):
                 new_alerts += 1
                 print(f"     ✅ Saved: {alert['origem']}→{alert['destino']} {alert['milhas_max']}mi")
 
+            # Mark as read
             try:
-                composio_client.tools.execute(
+                composio.tools.execute(
                     slug="GMAIL_MODIFY_MESSAGE",
                     arguments={"user_id": "me", "id": msg_id, "remove_labels": ["UNREAD"]},
-                    user_id=GMAIL_ENTITY,
+                    user_id=USER_ID,
                     dangerously_skip_version_check=True,
                 )
                 print("     📭 Marked as read")
