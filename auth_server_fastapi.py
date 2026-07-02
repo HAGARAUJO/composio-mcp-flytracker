@@ -3,6 +3,12 @@
 import os, hashlib, hmac, secrets, asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
+from datetime import datetime
+
+LOG_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+def log(level: str, msg: str):
+    print(f"[{datetime.now().strftime(LOG_FORMAT)}][{level}] {msg}")
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -74,19 +80,19 @@ async def lifespan(app: FastAPI):
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        print("[INFO] PostgreSQL connected")
+        log("INFO", "PostgreSQL connected")
     except Exception as e:
-        print(f"[ERROR] PostgreSQL: {e}")
+        log("ERROR", f"PostgreSQL: {e}")
     # Start alert checker in background
     try:
         import alert_checker
         await alert_checker.init_alertas_table(engine)
         asyncio.create_task(alert_checker.alert_loop(redis_client, engine))
-        print("[INFO] Alert checker started — will check Gmail every 2h")
+        log("INFO", "Alert checker started — will check Gmail every 2h")
         if not os.getenv("COMPOSIO_API_KEY"):
-            print("[ALERTA] COMPOSIO_API_KEY not set — alert checker will skip actual API calls")
+            log("ALERTA", "COMPOSIO_API_KEY not set — alert checker will skip actual API calls")
     except Exception as e:
-        print(f"[ALERTA] Alert checker not available: {e}")
+        log("ALERTA", f"Alert checker not available: {e}")
     yield
     await redis_client.close()
     await close_pg_pool()
@@ -319,10 +325,10 @@ async def serve_frontend():
 # ── Main ────────────────────
 if __name__ == "__main__":
     port = PORT
-    print("[INFO] Buscador de Passagens — Auth API")
-    print(f"[INFO] Port: {port}")
-    print(f"[INFO] DB: {DATABASE_URL.split('@')[1].split('?')[0] if DATABASE_URL and '@' in DATABASE_URL else 'configured'}")
-    print(f"[INFO] Redis: {REDIS_URL.split('@')[1] if REDIS_URL and '@' in REDIS_URL else REDIS_URL or 'configured'}")
+    log("INFO", "Buscador de Passagens — Auth API")
+    log("INFO", f"Port: {port}")
+    log("INFO", f"DB: {DATABASE_URL.split('@')[1].split('?')[0] if DATABASE_URL and '@' in DATABASE_URL else 'configured'}")
+    log("INFO", f"Redis: {REDIS_URL.split('@')[1] if REDIS_URL and '@' in REDIS_URL else REDIS_URL or 'configured'}")
     has_key = bool(os.getenv("COMPOSIO_API_KEY"))
-    print(f"[INFO] Alert checker: {'composio-core installed' if has_key else '⚠️ COMPOSIO_API_KEY not set'}")
+    log("INFO", f"Alert checker: {'composio-core installed' if has_key else '⚠️ COMPOSIO_API_KEY not set'}")
     uvicorn.run("auth_server_fastapi:app", host="0.0.0.0", port=port, log_level="info", access_log=True)

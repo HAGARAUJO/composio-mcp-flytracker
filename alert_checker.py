@@ -4,6 +4,11 @@ import os
 import re
 from datetime import datetime
 
+LOG_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+def log(level: str, msg: str):
+    print(f"[{datetime.now().strftime(LOG_FORMAT)}][{level}] {msg}")
+
 USER_ID = os.getenv("GMAIL_ENTITY", "pg-test-0b63b0ba-9503-4607-8921-3f03394aa1ed")
 ALERTA_INTERVAL = int(os.getenv("ALERTA_INTERVAL_HORAS", "2"))
 
@@ -12,7 +17,7 @@ try:
     from composio import Composio
     HAS_COMPOSIO = bool(os.getenv("COMPOSIO_API_KEY", ""))
 except ImportError:
-    print("[ALERTA] composio not installed")
+    log("ALERTA", "composio not installed")
 
 SQL_CREATE_ALERTAS = """
 CREATE TABLE IF NOT EXISTS alertas (
@@ -37,9 +42,9 @@ async def init_alertas_table(engine):
         from sqlalchemy import text
         with engine.begin() as conn:
             conn.execute(text(SQL_CREATE_ALERTAS))
-        print("[INFO] alertas table ready")
+        log("INFO", "alertas table ready")
     except Exception as e:
-        print(f"[ALERTA] Could not create alertas table: {e}")
+        log("ALERTA", f"Could not create alertas table: {e}")
 
 
 def extract_visible_text(html: str) -> str:
@@ -112,12 +117,12 @@ def parse_alert_email(subject: str, body: str) -> list[dict]:
 async def check_alerts(redis_client, engine):
     """Fetch unread Gmail emails, parse, store."""
     if not HAS_COMPOSIO:
-        print("[ALERTA] Composio not configured — skipping alert check")
+        log("ALERTA", "Composio not configured — skipping alert check")
         return
 
     try:
         composio = Composio()
-        print("[INFO] Checking Gmail for alert emails...")
+        log("INFO", "Checking Gmail for alert emails...")
 
         result = composio.tools.execute(
             slug="GMAIL_FETCH_EMAILS",
@@ -129,14 +134,14 @@ async def check_alerts(redis_client, engine):
         if isinstance(result, dict):
             messages = result.get("data", {}).get("messages", [])
         else:
-            print(f"[ERROR] Unexpected response type: {type(result)}")
+            log("ERROR", f"Unexpected response type: {type(result)}")
             return
 
         if not messages:
-            print("[INFO] No new emails found")
+            log("INFO", "No new emails found")
             return
 
-        print(f"[INFO] Found {len(messages)} email(s) to process")
+        log("INFO", f"Found {len(messages)} email(s) to process")
         from sqlalchemy import text
         new_alerts = 0
         msg_ids_to_mark = []
@@ -144,11 +149,11 @@ async def check_alerts(redis_client, engine):
         for msg in messages:
             subject = msg.get("subject", "") or ""
             msg_id = msg.get("messageId", "") or msg.get("id", "")
-            print(f"[INFO]   → Subject: {subject[:80]}")
+            log("INFO", f"  → Subject: {subject[:80]}")
 
             alerts = parse_alert_email(subject, msg.get("messageText", "") or msg.get("snippet", "") or "")
             if not alerts:
-                print("[INFO]     ⏭️ Not an award alert")
+                log("INFO", "    ⏭️ Not an award alert")
                 continue
 
             with engine.connect() as conn:
@@ -158,7 +163,7 @@ async def check_alerts(redis_client, engine):
                 ).fetchone()
 
             if existing:
-                print("[INFO]     ⏭️ Already processed")
+                log("INFO", "    ⏭️ Already processed")
                 continue
 
             for alert in alerts:
@@ -177,7 +182,7 @@ async def check_alerts(redis_client, engine):
                     detail += f" {alert['milhas_max']}mi"
                 if alert["programa"]:
                     detail += f" {alert['programa']}"
-                print(f"[ALERTA]     ✅ {detail}")
+                log("ALERTA", f"    ✅ {detail}")
             msg_ids_to_mark.append(msg_id)
 
         if msg_ids_to_mark:
@@ -188,14 +193,14 @@ async def check_alerts(redis_client, engine):
                     user_id=USER_ID,
                     dangerously_skip_version_check=True,
                 )
-                print(f"[INFO]     📭 {len(msg_ids_to_mark)} email(s) marked as read")
+                log("INFO", f"    📭 {len(msg_ids_to_mark)} email(s) marked as read")
             except Exception as e:
-                print(f"[ERROR]     ⚠️ Could not mark as read: {e}")
+                log("ERROR", f"    ⚠️ Could not mark as read: {e}")
 
-        print(f"[INFO] ✅ Alert check complete — {new_alerts} new alerts stored")
+        log("INFO", f"✅ Alert check complete — {new_alerts} new alerts stored")
 
     except Exception as e:
-        print(f"[ERROR] ⚠️ Alert check failed: {e}")
+        log("ERROR", f"⚠️ Alert check failed: {e}")
 
 
 async def alert_loop(redis_client, engine):
