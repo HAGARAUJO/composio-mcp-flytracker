@@ -1,6 +1,6 @@
 #!/opt/data/flytracker/backend/.venv/bin/python3
 """Auth API — FastAPI + PostgreSQL + Redis."""
-import os, hashlib, hmac, secrets
+import os, hashlib, hmac, secrets, asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -13,8 +13,8 @@ import redis.asyncio as aioredis
 
 # ── Config ────────────────
 PORT = int(os.getenv("PORT", "8000"))
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://auth_api:auth_api_2026_seguro@postgres:5432/buscador_passagens")
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/12")
+DATABASE_URL = os.getenv("DATABASE_URL")
+REDIS_URL = os.getenv("REDIS_URL")
 
 engine = create_engine(DATABASE_URL, pool_size=2, max_overflow=2)
 redis_client = None
@@ -77,6 +77,14 @@ async def lifespan(app: FastAPI):
         print("✅ PostgreSQL connected")
     except Exception as e:
         print(f"⚠️ PostgreSQL: {e}")
+    # Start alert checker in background
+    try:
+        import alert_checker
+        await alert_checker.init_alertas_table(engine)
+        asyncio.create_task(alert_checker.alert_loop(redis_client, engine))
+        print("✅ Alert checker started (every 2h)")
+    except Exception as e:
+        print(f"⚠️ Alert checker not available: {e}")
     yield
     await redis_client.close()
     await close_pg_pool()
@@ -271,6 +279,33 @@ async def get_all_data():
     """Get all award/commercial data (for frontend initialization)."""
     data = await fetch_award_data(redis_client)
     return data
+
+@app.get("/api/alertas")
+async def get_alertas():
+    """Get stored alerts from Gmail parsing."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT id, origem, destino, milhas_max, programa, classe, data_viagem, criado_em FROM alertas ORDER BY criado_em DESC LIMIT 50")
+            ).fetchall()
+        return {
+            "alertas": [
+                {
+                    "id": r[0],
+                    "origem": r[1],
+                    "destino": r[2],
+                    "milhas_max": r[3],
+                    "programa": r[4],
+                    "classe": r[5],
+                    "data_viagem": str(r[6]) if r[6] else None,
+                    "criado_em": str(r[7]),
+                }
+                for r in rows
+            ]
+        }
+    except Exception as e:
+        return {"alertas": [], "error": str(e)}
 
 @app.get("/")
 @app.head("/")
