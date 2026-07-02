@@ -12,10 +12,11 @@ ALERTA_INTERVAL = int(os.getenv("ALERTA_INTERVAL_HORAS", "2"))
 
 try:
     from composio import Composio
+    from composio.client.enums import Action
     HAS_COMPOSIO = True
 except ImportError:
     HAS_COMPOSIO = False
-    logger.warning("composio-core not installed")
+    print("⚠️ composio-core not installed")
 
 SQL_CREATE_ALERTAS = """
 CREATE TABLE IF NOT EXISTS alertas (
@@ -119,7 +120,7 @@ async def check_alerts(redis_client, engine):
 
         print("📧 Checking Gmail for alert emails...")
         result = composio_client.actions.execute(
-            action="GMAIL_FETCH_EMAILS",
+            action=Action("GMAIL_FETCH_EMAILS"),
             params={
                 "user_id": "me",
                 "max_results": 10,
@@ -180,7 +181,7 @@ async def check_alerts(redis_client, engine):
             # Mark as read
             try:
                 composio_client.actions.execute(
-                    action="GMAIL_MODIFY_MESSAGE",
+                    action=Action("GMAIL_MODIFY_MESSAGE"),
                     params={
                         "user_id": "me",
                         "id": msg_id,
