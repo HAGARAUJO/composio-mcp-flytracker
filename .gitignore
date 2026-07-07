@@ -31,3 +31,6 @@ node_modules/
 # Spec Kit (local only, not pushed to GitHub)
 .specify/
 spec-kit/
+.github/
+.github_new/
+.vscode_new/
